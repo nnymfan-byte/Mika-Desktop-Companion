@@ -8,6 +8,9 @@ var mouth: MeshInstance3D
 var bob := 0.0
 var blink := 0.0
 var t := 0.0
+var speaking := false
+var mood := "happy"
+var mouth_timer := 0.0
 
 func _ready():
     root3d = Node3D.new()
@@ -122,6 +125,22 @@ func _build_alya():
     label.outline_size = 8
     character.add_child(label)
 
+func _make_button(parent: Control, text_value: String, pos: Vector2) -> Button:
+    var b = Button.new()
+    b.text = text_value
+    b.position = pos
+    b.size = Vector2(92,34)
+    b.add_theme_font_size_override("font_size",12)
+    parent.add_child(b)
+    return b
+
+func _set_mood(new_mood: String):
+    mood = new_mood
+    if mouth:
+        var m = mouth.material_override as StandardMaterial3D
+        if m:
+            m.albedo_color = Color("#6d86ff") if mood == "happy" else Color("#28304a")
+
 func _build_ui():
     var layer = CanvasLayer.new()
     add_child(layer)
@@ -139,11 +158,22 @@ func _build_ui():
     layer.add_child(title)
 
     var hint = Label.new()
-    hint.text = "3D body • expressions • idle animation"
+    hint.text = "3D • idle • blink • expressions • voice-ready"
     hint.position = Vector2(30,58)
     hint.add_theme_font_size_override("font_size",11)
     hint.modulate = Color("#9aa7c5")
     layer.add_child(hint)
+
+    var controls = HBoxContainer.new()
+    controls.position = Vector2(18,445)
+    controls.size = Vector2(324,40)
+    layer.add_child(controls)
+    for label in ["😊", "😤", "😳", "💤"]:
+        var b = Button.new()
+        b.text = label
+        b.custom_minimum_size = Vector2(74,34)
+        controls.add_child(b)
+        b.pressed.connect(func(): _set_mood({"😊":"happy","😤":"annoyed","😳":"shy","💤":"sleepy"}[label]))
 
 func _process(delta):
     t += delta
@@ -151,6 +181,16 @@ func _process(delta):
     if character:
         character.position.y = -0.15 + bob
         character.rotation.y = sin(t * 0.55) * 0.07
+        if mouth:
+            mouth.position.y = 1.25 + (sin(t * 14.0) * 0.018 if speaking else 0.0)
+            mouth.scale.y = 0.06 if speaking else 0.035
+
+    mouth_timer += delta
+    if mouth_timer > 4.0:
+        speaking = true
+        mouth_timer = 0.0
+    elif speaking and mouth_timer > 1.2:
+        speaking = false
 
     # subtle eye blink animation
     blink += delta
