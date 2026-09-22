@@ -51,9 +51,9 @@ class Mika:
 
     def __init__(self, root):
         self.root = root
-        root.title("Mika — Desktop Companion V3")
-        root.geometry("500x760")
-        root.minsize(410,620)
+        root.title("Alya — Desktop Companion")
+        root.geometry("420x620")
+        root.minsize(380,560)
         root.attributes("-topmost", True)
         root.configure(bg="#0d1018")
         self.last_detected = set()
@@ -68,7 +68,7 @@ class Mika:
 
     def build(self):
         top=tk.Frame(self.root,bg="#171b28"); top.pack(fill="x")
-        tk.Label(top,text="MIKA",fg="#c8d5ff",bg="#171b28",
+        tk.Label(top,text="ALYA",fg="#c8d5ff",bg="#171b28",
                  font=("Segoe UI",18,"bold")).pack(side="left",padx=14,pady=9)
         tk.Label(top,text="V3 • ANIME GAMER",fg="#6878a8",bg="#171b28",
                  font=("Segoe UI",8,"bold")).pack(side="left")
@@ -77,9 +77,7 @@ class Mika:
         tk.Button(top,text="×",command=self.root.destroy,bg="#171b28",
                   fg="white",bd=0,font=("Segoe UI",15)).pack(side="right",padx=9)
 
-        self.avatar=tk.Label(self.root,text="◕‿◕",fg="#e6edff",bg="#202638",
-                             font=("Segoe UI",45,"bold"),width=10,height=2)
-        self.avatar.pack(pady=(15,3))
+        self.avatar=None
         self.mood=tk.StringVar(value="HAPPY")
         self.status=tk.StringVar(value="Cheveux argentés, yeux bleus. Et oui, je te surveille. 👀")
         tk.Label(self.root,textvariable=self.mood,fg="#8fa9ff",bg="#0d1018",
@@ -87,12 +85,13 @@ class Mika:
         tk.Label(self.root,textvariable=self.status,fg="#aeb7cc",bg="#0d1018",
                  wraplength=410,font=("Segoe UI",9)).pack(pady=(2,10))
 
-        self.chat=scrolledtext.ScrolledText(self.root,wrap="word",height=16,
-            bg="#151a25",fg="#edf1ff",insertbackground="white",relief="flat",
-            font=("Segoe UI",10),padx=9,pady=8)
-        self.chat.pack(fill="both",expand=True,padx=13)
-        self.chat.insert("end","Mika: T'es enfin là. 🙄\nMika: V3 activée. Donne-moi une commande... ou essaie de me casser. 👀\n\n")
-        self.chat.configure(state="disabled")
+        self.chat=None
+        # Petit personnage anime en bas : aucune réponse écrite.
+        self.avatar_canvas=tk.Canvas(self.root,width=190,height=210,bg="#0d1018",highlightthickness=0)
+        self.avatar_canvas.pack(side="bottom",pady=(0,4))
+        self.avatar_canvas.bind("<Button-1>",lambda e:self.speak("Je suis là. Tu voulais quelque chose ?"))
+        self.draw_alya()
+        self.animate_alya()
 
         bottom=tk.Frame(self.root,bg="#0d1018"); bottom.pack(fill="x",padx=13,pady=9)
         self.entry=tk.Entry(bottom,bg="#202638",fg="white",insertbackground="white",
@@ -136,23 +135,45 @@ class Mika:
         self.root.after(1500, self.poll_sync)
 
     def append(self, who, msg):
-        self.chat.configure(state="normal")
-        self.chat.insert("end",f"{who}: {msg}\n\n")
-        self.chat.see("end")
-        self.chat.configure(state="disabled")
+        return
+
+    def draw_alya(self, mood="happy"):
+        c=self.avatar_canvas
+        c.delete("all")
+        bob=getattr(self,"_bob",0)
+        c.create_oval(57,35+bob,133,111+bob,fill="#e8eef7",outline="")
+        c.create_polygon(58,62+bob,62,31+bob,82,15+bob,111,20+bob,136,42+bob,131,79+bob,119,62+bob,108,48+bob,91,52+bob,76,76+bob,fill="#b9c4d6",outline="")
+        eye="#5f8cff"
+        if mood=="annoyed":
+            c.create_line(75,70+bob,87,67+bob,fill=eye,width=4)
+            c.create_line(103,67+bob,115,70+bob,fill=eye,width=4)
+        else:
+            c.create_oval(76,67+bob,87,80+bob,fill=eye,outline="")
+            c.create_oval(103,67+bob,114,80+bob,fill=eye,outline="")
+        c.create_arc(91,78+bob,101,88+bob,start=200,extent=140,style="arc",width=2)
+        c.create_polygon(45,125+bob,65,108+bob,125,108+bob,145,125+bob,154,205+bob,36,205+bob,fill="#202b43",outline="")
+        c.create_text(95,178+bob,text="ALYA",fill="#dce6ff",font=("Segoe UI",11,"bold"))
+
+    def animate_alya(self):
+        self._bob=0 if getattr(self,"_bob",0) else 2
+        self.draw_alya(getattr(self,"_current_mood","happy"))
+        self.root.after(900,self.animate_alya)
 
     def say(self,who,msg):
+        if who=="Mika":
+            self.speak(msg)
         self.append(who,msg)
 
     def moodset(self,mood):
         face,label=self.FACES.get(mood,self.FACES["happy"])
-        self.avatar.config(text=face)
+        self._current_mood=mood
+        self.draw_alya(mood)
         self.mood.set(label)
 
     def notify(self,msg):
         if os.name!="nt": return
         safe=msg.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace('"',"&quot;")
-        ps='[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null;$x=[Windows.Data.Xml.Dom.XmlDocument]::new();$x.LoadXml("<toast><visual><binding template=\"ToastGeneric\"><text>Mika</text><text>'+safe+'</text></binding></visual></toast>");$t=[Windows.UI.Notifications.ToastNotification]::new($x);[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Mika Desktop Companion").Show($t)'
+        ps='[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null;$x=[Windows.Data.Xml.Dom.XmlDocument]::new();$x.LoadXml("<toast><visual><binding template=\"ToastGeneric\"><text>Mika</text><text>'+safe+'</text></binding></visual></toast>");$t=[Windows.UI.Notifications.ToastNotification]::new($x);[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Alya Desktop Companion").Show($t)'
         try: subprocess.Popen(["powershell","-NoProfile","-Command",ps],creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
         except Exception: pass
 
@@ -164,7 +185,7 @@ class Mika:
         except Exception: pass
 
     def settings(self):
-        win=tk.Toplevel(self.root); win.title("Mika — Réglages"); win.configure(bg="#171b28")
+        win=tk.Toplevel(self.root); win.title("Alya — Réglages"); win.configure(bg="#171b28")
         tk.Label(win,text="Personnalité",fg="white",bg="#171b28",font=("Segoe UI",11,"bold")).pack(pady=(18,6))
         var=tk.StringVar(value=config.get("personality","Tsundere"))
         for p in self.PERSONALITIES:
@@ -259,7 +280,7 @@ class Mika:
         self.moodset("happy"); self.say("Mika",f"Il est {now}. 🕐")
 
     def timer_dialog(self):
-        mins=simpledialog.askinteger("Mika Timer","Combien de minutes ?",minvalue=1,maxvalue=1440)
+        mins=simpledialog.askinteger("Alya Timer","Combien de minutes ?",minvalue=1,maxvalue=1440)
         if mins: self.timer(mins)
 
     def timer(self,mins):
@@ -272,7 +293,7 @@ class Mika:
         threading.Thread(target=wait,daemon=True).start()
 
     def reminder_dialog(self):
-        mins=simpledialog.askinteger("Mika Rappel","Dans combien de minutes ?",minvalue=1,maxvalue=10080)
+        mins=simpledialog.askinteger("Alya Rappel","Dans combien de minutes ?",minvalue=1,maxvalue=10080)
         if mins:
             text=simpledialog.askstring("Mika Rappel","Quel rappel ?")
             if text: self.reminder(mins,text)
@@ -366,7 +387,7 @@ class Mika:
         ai=self.ai_answer(msg)
         answer=ai or fallback
         self.sync_state.setdefault("messages",[]).append(("Mika",answer)); self.sync_state["messages"]=self.sync_state["messages"][-100:]; memory["chat"]=self.sync_state["messages"]; save(); self.root.after(0,lambda:self.say("Mika",answer))
-        if ai: self.root.after(0,lambda:self.speak(answer))
+        self.root.after(0,lambda:self.speak(answer))
 
     def idle_reaction(self):
         self.status.set(random.choice(["Je te surveille. 👀","T'as besoin de moi ?","Toujours là.","...tu joues à quoi ?"]))
