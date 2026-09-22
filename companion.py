@@ -32,7 +32,7 @@ def save_config():
 
 save()
 
-class Mika:
+class Alya:
     FACES = {
         "happy":("◕‿◕","HAPPY"),
         "annoyed":("ಠ_ಠ","ANNOYED"),
@@ -61,7 +61,7 @@ class Mika:
         self.build()
         self.idle_reaction()
         self.monitor_desktop()
-        self.sync_state = {"messages": memory.get("chat", [])[-100:], "personality": config.get("personality", "Tsundere")}
+        self.sync_state = {"messages": memory.get("chat", [])[-100:], "personality": config.get("personality", "Tsundere"), "mood": "happy", "speaking": False}
         self.sync_seen = len(self.sync_state["messages"])
         self.sync_url, self.sync_token = start_sync_server(self.sync_state, config)
         self.root.after(1500, self.poll_sync)
@@ -180,6 +180,7 @@ class Mika:
     def moodset(self,mood):
         face,label=self.FACES.get(mood,self.FACES["happy"])
         self._current_mood=mood
+        self.sync_state["mood"] = mood
         self.draw_alya(mood)
         self.mood.set(label)
 
@@ -194,8 +195,16 @@ class Mika:
         if os.name!="nt": return
         safe=msg.replace("'","''")
         ps="Add-Type -AssemblyName System.Speech;$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;$v=$s.GetInstalledVoices()|ForEach-Object {$_.VoiceInfo};$f=$v|Where-Object {$_.Gender -eq 'Female'}|Select-Object -First 1;if($f){$s.SelectVoice($f.Name)};$s.Speak('"+safe+"')"
-        try: subprocess.Popen(["powershell","-NoProfile","-Command",ps],creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
-        except Exception: pass
+        def run_tts():
+            self.sync_state["speaking"] = True
+            try:
+                p=subprocess.Popen(["powershell","-NoProfile","-Command",ps],creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+                p.wait()
+            except Exception:
+                pass
+            finally:
+                self.sync_state["speaking"] = False
+        threading.Thread(target=run_tts,daemon=True).start()
 
     def settings(self):
         win=tk.Toplevel(self.root); win.title("Alya — Réglages"); win.configure(bg="#171b28")
@@ -406,5 +415,5 @@ class Mika:
         self.root.after(12000,self.idle_reaction)
 
 root=tk.Tk()
-Mika(root)
+Alya(root)
 root.mainloop()
