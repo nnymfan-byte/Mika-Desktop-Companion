@@ -414,6 +414,25 @@ class Alya:
         self.status.set(random.choice(["Je te surveille. 👀","T'as besoin de moi ?","Toujours là.","...tu joues à quoi ?"]))
         self.root.after(12000,self.idle_reaction)
 
-root=tk.Tk()
-Alya(root)
-root.mainloop()
+def launch_alya_3d():
+    exe = os.path.join(APP_DIR, "build", "Alya3D.exe")
+    if os.path.exists(exe):
+        try:
+            subprocess.Popen([exe], cwd=os.path.dirname(exe), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            return True
+        except Exception:
+            pass
+    return False
+
+if __name__ == "__main__":
+    # Alya 3D is the primary visual interface.
+    # Python stays hidden as the AI / voice / memory backend.
+    if launch_alya_3d():
+        root=tk.Tk()
+        root.withdraw()
+        Alya(root)
+        root.mainloop()
+    else:
+        root=tk.Tk()
+        Alya(root)
+        root.mainloop()
