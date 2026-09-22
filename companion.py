@@ -1,11 +1,12 @@
 import tkinter as tk
+from sync_server import start_sync_server
 from tkinter import scrolledtext, messagebox, simpledialog
 import json, os, subprocess, threading, time, random, datetime, urllib.request, webbrowser
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_FILE = os.path.join(APP_DIR, "memory.json")
 CONFIG_FILE = os.path.join(APP_DIR, "mika_config.json")
-DEFAULT_MEMORY = {"name":"Mika","sessions":0,"messages":0,"timers":0,"reminders":0,"user_notes":[]}
+DEFAULT_MEMORY = {"name":"Mika","sessions":0,"messages":0,"timers":0,"reminders":0,"user_notes":[],"chat":[]}
 
 try:
     with open(MEMORY_FILE, "r", encoding="utf-8") as f:
@@ -60,6 +61,10 @@ class Mika:
         self.build()
         self.idle_reaction()
         self.monitor_desktop()
+        self.sync_state = {"messages": memory.get("chat", [])[-100:], "personality": config.get("personality", "Tsundere")}
+        self.sync_seen = len(self.sync_state["messages"])
+        self.sync_url, self.sync_token = start_sync_server(self.sync_state, config)
+        self.root.after(1500, self.poll_sync)
 
     def build(self):
         top=tk.Frame(self.root,bg="#171b28"); top.pack(fill="x")
@@ -105,11 +110,30 @@ class Mika:
             ("⏱ Timer",self.timer_dialog),
             ("🔔 Rappel",self.reminder_dialog),
             ("🕐 Heure",self.show_time),
-            ("📊 Stats",self.stats)
+            ("📊 Stats",self.stats),
+            ("📱 Téléphone",self.phone_info)
         ]
         for label,cmd in buttons:
             tk.Button(controls,text=label,command=cmd,bg="#202638",fg="#dfe6ff",
                       bd=0,padx=6,pady=7).pack(side="left",padx=1)
+
+    def phone_info(self):
+        import socket
+        try: host=socket.gethostbyname(socket.gethostname())
+        except Exception: host="127.0.0.1"
+        url=f"http://{host}:8765/?token={self.sync_token}"
+        self.say("Mika",f"📱 Sur ton téléphone, ouvre {url} (même Wi-Fi).")
+        self.notify(f"Mika Mobile: {url}")
+
+    def poll_sync(self):
+        try:
+            msgs=self.sync_state.get("messages", [])
+            if len(msgs) > self.sync_seen:
+                for who,msg in msgs[self.sync_seen:]:
+                    self.root.after(0, lambda w=who,m=msg: self.append(w,m))
+                self.sync_seen=len(msgs); memory["chat"]=msgs[-100:]; memory["messages"]=sum(1 for w,_ in msgs if w=="Toi"); save()
+        except Exception: pass
+        self.root.after(1500, self.poll_sync)
 
     def append(self, who, msg):
         self.chat.configure(state="normal")
@@ -152,6 +176,7 @@ class Mika:
         def save_and_close():
             config["personality"]=var.get()
             config["openai_key"]=key.get().strip()
+            self.sync_state["personality"]=var.get()
             save_config(); self.say("Mika",f"Mode {var.get()} activé. 😏"); win.destroy()
         tk.Button(win,text="Enregistrer",command=save_and_close,bg="#718cff",fg="white",bd=0,padx=16,pady=8).pack(pady=15)
 
@@ -331,7 +356,7 @@ class Mika:
     def send(self):
         msg=self.entry.get().strip()
         if not msg:return
-        self.entry.delete(0,"end"); memory["messages"]+=1; save(); self.say("Toi",msg)
+        self.entry.delete(0,"end"); memory["messages"]+=1; save(); self.sync_state.setdefault("messages",[]).append(("Toi",msg)); self.sync_state["messages"]=self.sync_state["messages"][-100:]; self.sync_seen=len(self.sync_state["messages"]); self.say("Toi",msg)
         result=self.answer(msg)
         if result is None: return
         threading.Thread(target=self.ai_or_fallback,args=(msg,result),daemon=True).start()
@@ -340,7 +365,7 @@ class Mika:
     def ai_or_fallback(self,msg,fallback):
         ai=self.ai_answer(msg)
         answer=ai or fallback
-        self.root.after(0,lambda:self.say("Mika",answer))
+        self.sync_state.setdefault("messages",[]).append(("Mika",answer)); self.sync_state["messages"]=self.sync_state["messages"][-100:]; memory["chat"]=self.sync_state["messages"]; save(); self.root.after(0,lambda:self.say("Mika",answer))
         if ai: self.root.after(0,lambda:self.speak(answer))
 
     def idle_reaction(self):
