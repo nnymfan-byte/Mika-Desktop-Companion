@@ -1,17 +1,16 @@
 import tkinter as tk
-from tkinter import scrolledtext
-import json, os, subprocess, threading, time, random
+from tkinter import scrolledtext, messagebox
+import json, os, subprocess, threading, time, random, datetime
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_FILE = os.path.join(APP_DIR, "memory.json")
-DEFAULT_MEMORY = {"name":"Mika","sessions":0,"messages":0,"timers":0}
+DEFAULT_MEMORY = {"name":"Mika","sessions":0,"messages":0,"timers":0,"user_notes":[]}
 
 try:
     with open(MEMORY_FILE, "r", encoding="utf-8") as f:
         memory = {**DEFAULT_MEMORY, **json.load(f)}
 except Exception:
     memory = DEFAULT_MEMORY.copy()
-
 memory["sessions"] += 1
 
 def save():
@@ -21,152 +20,144 @@ def save():
 save()
 
 class Mika:
+    FACES = {
+        "happy":("◕‿◕","HAPPY"), "annoyed":("ಠ_ಠ","ANNOYED"),
+        "surprised":("⊙_⊙","SURPRISED"), "shy":("⁄⁄•⁄ω⁄•⁄⁄","SHY"),
+        "sleepy":("－_－","SLEEPY"), "hype":("ᕙ(🔥‿🔥)ᕗ","HYPE")
+    }
+
     def __init__(self, root):
-        self.root = root
-        root.title("Mika — Desktop Companion")
-        root.geometry("390x560")
-        root.minsize(350, 500)
+        self.root=root
+        root.title("Mika — Desktop Companion V2")
+        root.geometry("440x650")
+        root.minsize(390,580)
         root.attributes("-topmost", True)
-        root.configure(bg="#10131c")
+        root.configure(bg="#0d1018")
+        self.build()
+        self.idle_reaction()
 
-        top = tk.Frame(root, bg="#171b28")
-        top.pack(fill="x")
-        tk.Label(top, text="MIKA", fg="#b9c9ff", bg="#171b28",
-                 font=("Segoe UI", 15, "bold")).pack(side="left", padx=12, pady=8)
-        tk.Button(top, text="×", command=root.destroy, bg="#171b28",
-                  fg="white", bd=0, font=("Segoe UI", 14)).pack(side="right", padx=8)
+    def build(self):
+        top=tk.Frame(self.root,bg="#171b28"); top.pack(fill="x")
+        tk.Label(top,text="MIKA",fg="#c8d5ff",bg="#171b28",
+                 font=("Segoe UI",17,"bold")).pack(side="left",padx=14,pady=9)
+        tk.Label(top,text="V2 • DESKTOP COMPANION",fg="#6878a8",bg="#171b28",
+                 font=("Segoe UI",8,"bold")).pack(side="left")
+        tk.Button(top,text="×",command=self.root.destroy,bg="#171b28",
+                  fg="white",bd=0,font=("Segoe UI",15)).pack(side="right",padx=9)
 
-        self.avatar = tk.Label(root, text="◕‿◕", fg="#dce8ff", bg="#202638",
-                               font=("Segoe UI", 42, "bold"), width=9, height=2)
-        self.avatar.pack(pady=(14, 3))
+        self.avatar=tk.Label(self.root,text="◕‿◕",fg="#e6edff",bg="#202638",
+                             font=("Segoe UI",45,"bold"),width=10,height=2)
+        self.avatar.pack(pady=(15,3))
+        self.mood=tk.StringVar(value="HAPPY")
+        self.status=tk.StringVar(value="Je suis là. Essaie de me surprendre.")
+        tk.Label(self.root,textvariable=self.mood,fg="#8fa9ff",bg="#0d1018",
+                 font=("Segoe UI",9,"bold")).pack()
+        tk.Label(self.root,textvariable=self.status,fg="#aeb7cc",bg="#0d1018",
+                 wraplength=380,font=("Segoe UI",9)).pack(pady=(2,10))
 
-        self.mood = tk.StringVar(value="HAPPY")
-        self.status = tk.StringVar(value="Je suis là. Essaie de me surprendre.")
-        tk.Label(root, textvariable=self.mood, fg="#8ea8ff", bg="#10131c",
-                 font=("Segoe UI", 9, "bold")).pack()
-        tk.Label(root, textvariable=self.status, fg="#aeb5c7", bg="#10131c",
-                 wraplength=340, font=("Segoe UI", 9)).pack(pady=(2, 10))
-
-        self.chat = scrolledtext.ScrolledText(
-            root, wrap="word", height=13, bg="#171b28", fg="#edf1ff",
-            insertbackground="white", relief="flat", font=("Segoe UI", 10)
-        )
-        self.chat.pack(fill="both", expand=True, padx=12)
-        self.chat.insert("end", "Mika: T'es enfin là. 🙄\n\n")
+        self.chat=scrolledtext.ScrolledText(self.root,wrap="word",height=15,
+            bg="#151a25",fg="#edf1ff",insertbackground="white",relief="flat",
+            font=("Segoe UI",10),padx=9,pady=8)
+        self.chat.pack(fill="both",expand=True,padx=13)
+        self.chat.insert("end","Mika: T'es enfin là. 🙄\nMika: V2 est lancée. Essaie de me casser. 👀\n\n")
         self.chat.configure(state="disabled")
 
-        bottom = tk.Frame(root, bg="#10131c")
-        bottom.pack(fill="x", padx=12, pady=10)
-        self.entry = tk.Entry(bottom, bg="#202638", fg="white",
-                               insertbackground="white", relief="flat",
-                               font=("Segoe UI", 10))
-        self.entry.pack(side="left", fill="x", expand=True, ipady=8)
-        self.entry.bind("<Return>", lambda e: self.send())
+        bottom=tk.Frame(self.root,bg="#0d1018"); bottom.pack(fill="x",padx=13,pady=9)
+        self.entry=tk.Entry(bottom,bg="#202638",fg="white",insertbackground="white",
+                            relief="flat",font=("Segoe UI",10))
+        self.entry.pack(side="left",fill="x",expand=True,ipady=9)
+        self.entry.bind("<Return>",lambda e:self.send())
+        tk.Button(bottom,text="Envoyer",command=self.send,bg="#718cff",fg="white",
+                  bd=0,font=("Segoe UI",9,"bold"),padx=12,pady=7).pack(side="right",padx=(7,0))
 
-        tk.Button(bottom, text="Envoyer", command=self.send, bg="#718cff",
-                  fg="white", bd=0, font=("Segoe UI", 9, "bold"),
-                  padx=10).pack(side="right", padx=(7, 0))
-
-        controls = tk.Frame(root, bg="#10131c")
-        controls.pack(fill="x", padx=12, pady=(0, 12))
-        buttons = [
-            ("🎮 Minecraft", lambda: self.game("Minecraft")),
-            ("🎯 Valorant", lambda: self.game("Valorant")),
-            ("📝 Notes", lambda: subprocess.Popen(["notepad.exe"])),
-            ("⏱ 5 min", lambda: self.timer(5)),
-            ("📊 Stats", self.stats)
+        controls=tk.Frame(self.root,bg="#0d1018"); controls.pack(fill="x",padx=11,pady=(0,12))
+        buttons=[
+            ("🎮 Minecraft",lambda:self.game("Minecraft")),
+            ("🎯 Valorant",lambda:self.game("Valorant")),
+            ("📝 Notes",lambda:subprocess.Popen(["notepad.exe"])),
+            ("⏱ Timer",self.timer_dialog),
+            ("📊 Stats",self.stats)
         ]
-        for label, cmd in buttons:
-            tk.Button(controls, text=label, command=cmd, bg="#202638",
-                      fg="#dfe6ff", bd=0, padx=6, pady=6).pack(side="left", padx=2)
+        for label,cmd in buttons:
+            tk.Button(controls,text=label,command=cmd,bg="#202638",fg="#dfe6ff",
+                      bd=0,padx=7,pady=7).pack(side="left",padx=2)
 
-    def say(self, who, msg):
+    def say(self,who,msg):
         self.chat.configure(state="normal")
-        self.chat.insert("end", f"{who}: {msg}\n\n")
-        self.chat.see("end")
-        self.chat.configure(state="disabled")
+        self.chat.insert("end",f"{who}: {msg}\n\n")
+        self.chat.see("end"); self.chat.configure(state="disabled")
 
-    def moodset(self, mood):
-        faces = {
-            "happy": ("◕‿◕", "HAPPY"),
-            "annoyed": ("ಠ_ಠ", "ANNOYED"),
-            "surprised": ("⊙_⊙", "SURPRISED"),
-            "shy": ("⁄⁄•⁄ω⁄•⁄⁄", "SHY"),
-            "sleepy": ("－_－", "SLEEPY"),
-            "hype": ("ᕙ(🔥‿🔥)ᕗ", "HYPE")
-        }
-        face, label = faces.get(mood, faces["happy"])
-        self.avatar.config(text=face)
-        self.mood.set(label)
+    def moodset(self,mood):
+        face,label=self.FACES.get(mood,self.FACES["happy"])
+        self.avatar.config(text=face); self.mood.set(label)
 
-    def answer(self, msg):
-        m = msg.lower()
-
-        if any(x in m for x in ["salut", "yo", "hey", "bonjour"]):
-            self.moodset("happy")
-            return random.choice(["Yo 😌", "Enfin. J'attendais.", "Salut toi. 👀"])
-
+    def answer(self,msg):
+        m=msg.lower()
+        if any(x in m for x in ["salut","yo","hey","bonjour"]):
+            self.moodset("happy"); return random.choice(["Yo 😌","Enfin. J'attendais.","Salut toi. 👀"])
         if "minecraft" in m:
-            self.moodset("hype")
-            return "Minecraft ? Vas-y, montre-moi ton PvP. 😏"
-
+            self.moodset("hype"); return "Minecraft ? Vas-y, montre-moi ton PvP. 😏"
         if "valorant" in m or "valo" in m:
-            self.moodset("hype")
-            return "Encore du ranked ? Respire avant de spray, champion. 🎯"
-
-        if any(x in m for x in ["merci", "thank"]):
-            self.moodset("shy")
-            return "Ouais ouais... de rien. 🙄"
-
-        if any(x in m for x in ["fatigue", "fatigué", "fatiguée", "triste"]):
-            self.moodset("sleepy")
-            return "Pause deux minutes. Même les gamers doivent recharger. 💤"
-
+            self.moodset("hype"); return "Encore du ranked ? Respire avant de spray, champion. 🎯"
+        if "modrinth" in m:
+            self.moodset("surprised"); return "Modrinth ? Je garde un œil sur tes mods. 👀"
+        if any(x in m for x in ["merci","thank"]):
+            self.moodset("shy"); return "Ouais ouais... de rien. 🙄"
+        if any(x in m for x in ["fatigue","fatigué","fatiguée","triste"]):
+            self.moodset("sleepy"); return "Pause deux minutes. Même les gamers doivent recharger. 💤"
         if "stats" in m:
-            return f"Sessions: {memory['sessions']} | Messages: {memory['messages']} | Timers: {memory['timers']}"
-
-        self.moodset(random.choice(["happy", "happy", "surprised", "shy"]))
-        return random.choice([
-            "Hmm... intéressant. Continue.",
-            "J'écoute. 👀",
-            "Tu veux vraiment que je réponde à ça ? 😭",
-            "Pas mal. Mais j'ai une meilleure idée."
-        ])
+            return self.stats_text()
+        if m.startswith("souviens-toi") or m.startswith("remember"):
+            note=msg.split(" ",1)[1] if " " in msg else ""
+            if note:
+                memory["user_notes"].append(note); save()
+                self.moodset("shy"); return "Je l'ai gardé en mémoire. 👀"
+        if "insulte" in m or "nul" in m:
+            self.moodset("annoyed"); return "Wow. Quelle violence. Je note ça. ಠ_ಠ"
+        self.moodset(random.choice(["happy","happy","surprised","shy"]))
+        return random.choice(["Hmm... intéressant. Continue.","J'écoute. 👀","Tu veux vraiment que je réponde à ça ? 😭","Pas mal. Mais j'ai une meilleure idée."])
 
     def send(self):
-        msg = self.entry.get().strip()
-        if not msg:
-            return
-        self.entry.delete(0, "end")
-        memory["messages"] += 1
-        save()
-        self.say("Toi", msg)
-        self.say("Mika", self.answer(msg))
-        self.status.set(random.choice([
-            "Je te surveille. 👀",
-            "T'as besoin de moi ?",
-            "Bon... je reste là."
-        ]))
+        msg=self.entry.get().strip()
+        if not msg:return
+        self.entry.delete(0,"end"); memory["messages"]+=1; save()
+        self.say("Toi",msg); self.say("Mika",self.answer(msg))
+        self.status.set(random.choice(["Je te surveille. 👀","T'as besoin de moi ?","Bon... je reste là."]))
 
-    def game(self, name):
-        self.moodset("hype")
-        self.say("Mika", f"{name} détecté dans mon cerveau. 🎮 Lance-le pour l'instant 😭")
+    def game(self,name):
+        self.moodset("hype"); self.say("Mika",f"{name} détecté. 🎮 Allez, montre-moi ce que tu sais faire.")
 
-    def timer(self, mins):
-        memory["timers"] += 1
-        save()
-        self.say("Mika", f"Timer de {mins} minutes lancé.")
+    def timer_dialog(self):
+        win=tk.Toplevel(self.root); win.title("Mika Timer"); win.configure(bg="#171b28")
+        tk.Label(win,text="Combien de minutes ?",fg="white",bg="#171b28",
+                 font=("Segoe UI",11,"bold")).pack(padx=20,pady=(18,8))
+        e=tk.Entry(win,bg="#202638",fg="white",insertbackground="white",relief="flat")
+        e.insert(0,"5"); e.pack(padx=20,pady=5,ipady=7)
+        def go():
+            try: mins=max(1,int(e.get()))
+            except ValueError: messagebox.showerror("Mika","Entre un nombre entier."); return
+            win.destroy(); self.timer(mins)
+        tk.Button(win,text="Lancer",command=go,bg="#718cff",fg="white",bd=0,padx=15,pady=7).pack(pady=15)
 
+    def timer(self,mins):
+        memory["timers"]+=1; save(); self.say("Mika",f"⏱ Timer de {mins} minutes lancé.")
         def wait():
-            time.sleep(mins * 60)
-            self.root.after(0, lambda: self.say("Mika", "⏰ Temps écoulé !"))
-            self.root.after(0, lambda: self.moodset("surprised"))
+            time.sleep(mins*60)
+            self.root.after(0,lambda:self.say("Mika","⏰ Temps écoulé !"))
+            self.root.after(0,lambda:self.moodset("surprised"))
+            self.root.after(0,lambda:self.root.bell())
+        threading.Thread(target=wait,daemon=True).start()
 
-        threading.Thread(target=wait, daemon=True).start()
+    def stats_text(self):
+        return f"📊 Sessions: {memory['sessions']} | Messages: {memory['messages']} | Timers: {memory['timers']} | Souvenirs: {len(memory['user_notes'])}"
 
     def stats(self):
-        self.say("Mika", f"📊 Sessions: {memory['sessions']} | Messages: {memory['messages']} | Timers: {memory['timers']}")
+        self.moodset("happy"); self.say("Mika",self.stats_text())
 
-root = tk.Tk()
+    def idle_reaction(self):
+        self.status.set(random.choice(["Je te surveille. 👀","T'as besoin de moi ?","Toujours là.","...tu joues à quoi ?"]))
+        self.root.after(12000,self.idle_reaction)
+
+root=tk.Tk()
 Mika(root)
 root.mainloop()
