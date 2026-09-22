@@ -50,7 +50,7 @@ def start_sync_server(state, config):
             path=urlparse(self.path).path
             if path=="/api/state":
                 if not self.authorized(): return self.send_json({"error":"unauthorized"},401)
-                return self.send_json({"messages":state.get("messages",[])[-100:],"personality":state.get("personality","Tsundere")})
+                return self.send_json({"messages":state.get("messages",[])[-100:],"personality":state.get("personality","Tsundere"),"mood":state.get("mood","happy"),"speaking":bool(state.get("speaking",False))})
             files={"/":"index.html","/index.html":"index.html","/app.js":"app.js","/manifest.json":"manifest.json"}
             if path in files:
                 try:
