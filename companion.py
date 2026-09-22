@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
-import json, os, subprocess, threading, time, random, datetime
+import json, os, subprocess, threading, time, random, datetime, urllib.request
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_FILE = os.path.join(APP_DIR, "memory.json")
@@ -28,13 +28,13 @@ class Mika:
 
     def __init__(self, root):
         self.root=root
-        root.title("Mika — Desktop Companion V2")
-        root.geometry("440x650")
+        root.title("Mika — Desktop Companion V3")
+        root.geometry("470x720")
         root.minsize(390,580)
         root.attributes("-topmost", True)
         root.configure(bg="#0d1018")
         self.build()
-        self.idle_reaction()
+        self.idle_reaction()\n        self.last_detected=set()\n        self.monitor_desktop()
 
     def build(self):
         top=tk.Frame(self.root,bg="#171b28"); top.pack(fill="x")
@@ -81,6 +81,62 @@ class Mika:
         for label,cmd in buttons:
             tk.Button(controls,text=label,command=cmd,bg="#202638",fg="#dfe6ff",
                       bd=0,padx=7,pady=7).pack(side="left",padx=2)
+
+    def show_games(self):
+        games=", ".join(sorted(self.detect_games())) or "Aucun jeu suivi"
+        self.say("Mika","🖥️ Ouvert : "+games)
+
+    def current_processes(self):
+        try:
+            return subprocess.check_output(["tasklist","/FO","CSV","/NH"],text=True,encoding="utf-8",errors="ignore").lower()
+        except Exception:
+            return ""
+
+    def detect_games(self):
+        p=self.current_processes()
+        apps={"Minecraft":["javaw.exe","minecraft.exe"],"Valorant":["valorant-win64-shipping.exe","valorant.exe"],"Modrinth":["modrinth-app.exe"],"Steam":["steam.exe"],"Discord":["discord.exe","discordptb.exe"]}
+        return {a for a,exes in apps.items() if any(chr(34)+e+chr(34) in p for e in exes)}
+
+    def monitor_desktop(self):
+        found=self.detect_games()
+        for game in found-self.last_detected:
+            self.root.after(0,lambda g=game:self.on_detected(g))
+        self.last_detected=found
+        self.root.after(3000,self.monitor_desktop)
+
+    def on_detected(self,game):
+        self.moodset("hype")
+        msg={"Minecraft":"Minecraft ouvert. 👀 Je regarde ton PvP.","Valorant":"VALORANT lancé. Respire avant le premier duel. 🎯","Modrinth":"Modrinth ouvert... encore des mods ? 😭","Steam":"Steam ouvert. 💀","Discord":"Discord ouvert. 👀"}.get(game,game+" détecté.")
+        self.say("Mika",msg)
+        self.notify(msg)
+        self.speak(msg)
+
+    def notify(self,msg):
+        if os.name!="nt": return
+        safe=msg.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+        ps='[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null;$x=[Windows.Data.Xml.Dom.XmlDocument]::new();$x.LoadXml("<toast><visual><binding template=\"ToastGeneric\"><text>Mika</text><text>'+safe+'</text></binding></visual></toast>");$t=[Windows.UI.Notifications.ToastNotification]::new($x);[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Mika Desktop Companion").Show($t)'
+        try: subprocess.Popen(["powershell","-NoProfile","-Command",ps],creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+        except Exception: pass
+
+    def speak(self,msg):
+        if os.name!="nt": return
+        safe=msg.replace("'","''")
+        ps="Add-Type -AssemblyName System.Speech;$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;$v=$s.GetInstalledVoices()|ForEach-Object {$_.VoiceInfo};$f=$v|Where-Object {$_.Gender -eq 'Female'}|Select-Object -First 1;if($f){$s.SelectVoice($f.Name)};$s.Speak('"+safe+"')"
+        try: subprocess.Popen(["powershell","-NoProfile","-Command",ps],creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+        except Exception: pass
+
+    def speak_last(self):
+        self.speak("Salut, c'est Mika. Je suis là. 👀")
+        self.say("Mika","🔊 Voix Windows lancée.")
+
+    def ai_answer(self,msg):
+        key=os.environ.get("MIKA_OPENAI_API_KEY")
+        if not key: return None
+        body={"model":"gpt-4o-mini","messages":[{"role":"system","content":"Tu es Mika, une compagne desktop anime gamer. Tu parles français, tu es drôle, taquine mais gentille. Réponses courtes."},{"role":"user","content":msg}],"temperature":0.9}
+        try:
+            req=urllib.request.Request("https://api.openai.com/v1/chat/completions",data=json.dumps(body).encode(),headers={"Content-Type":"application/json","Authorization":"Bearer "+key})
+            with urllib.request.urlopen(req,timeout=25) as r: return json.loads(r.read().decode())["choices"][0]["message"]["content"].strip()
+        except Exception: return None
 
     def say(self,who,msg):
         self.chat.configure(state="normal")
