@@ -1,0 +1,38 @@
+name: Build Alya 3D
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "alya3d/**"
+      - ".github/workflows/build-alya-3d.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Godot
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_win64.exe.zip" -OutFile godot.zip
+          Expand-Archive godot.zip -DestinationPath godot
+          $godot = Get-ChildItem godot -Filter "Godot_v4.5.1-stable_win64.exe" -Recurse | Select-Object -First 1
+          Copy-Item $godot.FullName godot.exe
+
+      - name: Import project
+        shell: pwsh
+        run: .\godot.exe --headless --editor --path alya3d --quit
+
+      - name: Export Windows
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build | Out-Null
+          .\godot.exe --headless --path alya3d --export-release "Windows Desktop" "..\build\Alya3D.exe"
+
+      - name: Upload Alya 3D
+        uses: actions/upload-artifact@v4
+        with:
+          name: Alya-3D-Windows
+          path: build/Alya3D.exe
