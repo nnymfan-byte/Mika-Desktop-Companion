@@ -52,8 +52,8 @@ class Mika:
     def __init__(self, root):
         self.root = root
         root.title("Alya — Desktop Companion")
-        root.geometry("420x620")
-        root.minsize(380,560)
+        root.geometry("300x430")
+        root.minsize(280,380)
         root.attributes("-topmost", True)
         root.configure(bg="#0d1018")
         self.last_detected = set()
@@ -90,6 +90,7 @@ class Mika:
         self.avatar_canvas=tk.Canvas(self.root,width=190,height=210,bg="#0d1018",highlightthickness=0)
         self.avatar_canvas.pack(side="bottom",pady=(0,4))
         self.avatar_canvas.bind("<Button-1>",lambda e:self.speak("Je suis là. Tu voulais quelque chose ?"))
+        self.avatar_canvas.bind("<Double-Button-1>",lambda e:self.homework_dialog())
         self.draw_alya()
         self.animate_alya()
 
@@ -101,20 +102,32 @@ class Mika:
         tk.Button(bottom,text="Envoyer",command=self.send,bg="#718cff",fg="white",
                   bd=0,font=("Segoe UI",9,"bold"),padx=12,pady=7).pack(side="right",padx=(7,0))
 
-        controls=tk.Frame(self.root,bg="#0d1018"); controls.pack(fill="x",padx=11,pady=(0,12))
-        buttons=[
-            ("🎮 Minecraft",lambda:self.game("Minecraft")),
-            ("🎯 Valorant",lambda:self.game("Valorant")),
-            ("📁 Dossier",self.open_folder),
-            ("⏱ Timer",self.timer_dialog),
-            ("🔔 Rappel",self.reminder_dialog),
-            ("🕐 Heure",self.show_time),
-            ("📊 Stats",self.stats),
-            ("📱 Téléphone",self.phone_info)
-        ]
-        for label,cmd in buttons:
-            tk.Button(controls,text=label,command=cmd,bg="#202638",fg="#dfe6ff",
-                      bd=0,padx=6,pady=7).pack(side="left",padx=1)
+    def homework_dialog(self):
+        subject=simpledialog.askstring("Alya — Devoirs","Matière ?")
+        if not subject: return
+        task=simpledialog.askstring("Alya — Devoirs","Copie la consigne du devoir :")
+        if not task: return
+        self.say("Mika",f"Ok, je t’aide pour ton devoir de {subject}. 📚")
+        threading.Thread(target=self.homework_answer,args=(subject,task),daemon=True).start()
+
+    def homework_answer(self,subject,task):
+        key=config.get("openai_key") or os.environ.get("MIKA_OPENAI_API_KEY")
+        if not key:
+            answer="Il me faut ta clé OpenAI dans les réglages pour faire ce devoir avec toi."
+        else:
+            prompt=("Aide un élève niveau collège. Matière: "+subject+". Consigne: "+task+"."
+                     " Explique simplement la méthode puis donne la réponse si elle est déterminable. Pour une question d’opinion, aide à construire la réponse.")
+            body={"model":"gpt-4o-mini","messages":[
+                {"role":"system","content":"Tu es Alya, assistante scolaire anime gamer, claire, patiente et légèrement taquine. Réponds en français."},
+                {"role":"user","content":prompt}], "temperature":0.4}
+            try:
+                req=urllib.request.Request("https://api.openai.com/v1/chat/completions",data=json.dumps(body).encode(),headers={"Content-Type":"application/json","Authorization":"Bearer "+key})
+                with urllib.request.urlopen(req,timeout=40) as rr: answer=json.loads(rr.read().decode())["choices"][0]["message"]["content"].strip()
+            except Exception: answer="J’ai eu un petit bug avec mon cerveau scolaire. 😭"
+        memory.setdefault("homework",[]).append({"subject":subject,"task":task,"answer":answer})
+        memory["homework"]=memory["homework"][-30:]
+        save()
+        self.root.after(0,lambda:self.say("Mika",answer))
 
     def phone_info(self):
         import socket
@@ -387,7 +400,6 @@ class Mika:
         ai=self.ai_answer(msg)
         answer=ai or fallback
         self.sync_state.setdefault("messages",[]).append(("Mika",answer)); self.sync_state["messages"]=self.sync_state["messages"][-100:]; memory["chat"]=self.sync_state["messages"]; save(); self.root.after(0,lambda:self.say("Mika",answer))
-        self.root.after(0,lambda:self.speak(answer))
 
     def idle_reaction(self):
         self.status.set(random.choice(["Je te surveille. 👀","T'as besoin de moi ?","Toujours là.","...tu joues à quoi ?"]))
