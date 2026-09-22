@@ -3,16 +3,18 @@ config/name="Alya 3D Desktop Companion"
 run/main_scene="res://main.tscn"
 
 [display]
-window/size/viewport_width=360
-window/size/viewport_height=520
-window/size/window_width_override=360
-window/size/window_height_override=520
+window/size/viewport_width=420
+window/size/viewport_height=560
+window/size/window_width_override=420
+window/size/window_height_override=560
 window/stretch/mode="canvas_items"
+window/per_pixel_transparency/allowed=true
+window/size/initial_position_type=1
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-environment/defaults/default_clear_color=Color(0.03,0.04,0.07,1)
+environment/defaults/default_clear_color=Color(0,0,0,0)
 
 [gui]
 theme/default_font_multichannel_signed_distance_field=true
